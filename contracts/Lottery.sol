@@ -115,10 +115,10 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint256[] memory randomWords
   ) internal override {
     uint256 index = (randomWords[0] % s_players.length);
+    s_winner = s_players[index];
     s_lotteryState = LotteryState.OPEN;
     s_players = new address payable[](0);
     s_lastTimeStamp = block.timestamp;
-    s_winner = s_players[index];
 
     (bool success, ) = payable(s_winner).call{value: address(this).balance}("");
     if (!success) revert Lottery__TransferFailed();
