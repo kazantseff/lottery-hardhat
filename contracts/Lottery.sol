@@ -10,7 +10,12 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 
 error Lottery__NotEnoughETH();
-error Lottery__NoUpKeepNeeded();
+error Lottery__NoUpKeepNeeded(
+  uint256 lotteryState,
+  uint256 numOfPlayers,
+  uint256 balance
+);
+error Lottery__TransferFailed();
 
 contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   // State variables
@@ -34,13 +39,12 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   uint256 private immutable i_entranceFee;
   address payable[] private s_players;
   address private s_winner;
-  uint256 private s_winnerNumber;
   uint256 private s_lastTimeStamp;
   LotteryState private s_lotteryState;
 
   event LotteryEntered(address indexed participant);
   event RequestedLotteryWinner(uint256 indexed reqId);
-  event WinnerPicked(address indexed winner, uint256 indexed winnerNumber);
+  event WinnerPicked(address indexed winner);
 
   constructor(
     address vrfCoordinatorV2,
@@ -89,7 +93,13 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
 
   function performUpkeep(bytes calldata /* PerformData */) external override {
     (bool upKeepNeeded, ) = checkUpkeep("");
-    if (!upKeepNeeded) revert Lottery__NoUpKeepNeeded();
+    if (!upKeepNeeded)
+      revert Lottery__NoUpKeepNeeded(
+        uint256(s_lotteryState),
+        s_players.length,
+        address(this).balance
+      );
+    s_lotteryState = LotteryState.PENDING;
     uint256 requestId = i_vrfCoordinator.requestRandomWords(
       i_gasLane,
       i_subscriptionId,
@@ -105,9 +115,13 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint256[] memory randomWords
   ) internal override {
     uint256 index = (randomWords[0] % s_players.length);
-    s_winnerNumber = index;
-    s_winner = s_players[index];
+    s_lotteryState = LotteryState.OPEN;
     s_players = new address payable[](0);
-    emit WinnerPicked(s_winner, s_winnerNumber);
+    s_lastTimeStamp = block.timestamp;
+    s_winner = s_players[index];
+
+    (bool success, ) = payable(s_winner).call{value: address(this).balance}("");
+    if (!success) revert Lottery__TransferFailed();
+    emit WinnerPicked(s_winner);
   }
 }
