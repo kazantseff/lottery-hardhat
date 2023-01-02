@@ -38,11 +38,14 @@ module.exports = {
     apiKey: process.env.ETHERSCAN_API_KEY
   },
   gasReporter: {
-    enabled: false,
+    enabled: true,
     outputFile: "gas-reporter.txt",
     currency: "USD",
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     noColors: true,
     token: "ETH"
+  },
+  mocha: {
+    timeout: 200000 // 200 seconds max
   }
 };

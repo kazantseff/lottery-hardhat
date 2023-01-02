@@ -5,12 +5,14 @@ pragma solidity ^0.8.9;
 // Automatically pick a winner based on VRF and Chainlink keeper
 // Payout a win
 
+import "hardhat/console.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 
 error Lottery__NotEnoughETH();
-error Lottery__NoUpKeepNeeded(
+error Lottery__NotOpen();
+error Lottery__NoUpkeepNeeded(
   uint256 lotteryState,
   uint256 numOfPlayers,
   uint256 balance
@@ -27,6 +29,9 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   }
 
   /* VRF Variables */
+
+  //here we match an ABI/VRFCoordinatorV2Interface with a var
+  // so that we can use VRFCoordinatorV2Interface as our only reference to that contract
   VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
   uint64 private immutable i_subscriptionId;
   bytes32 private immutable i_gasLane;
@@ -43,7 +48,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   LotteryState private s_lotteryState;
 
   event LotteryEntered(address indexed participant);
-  event RequestedLotteryWinner(uint256 indexed reqId);
+  event RequestedLotteryWinner(uint256 indexed requestId);
   event WinnerPicked(address indexed winner);
 
   constructor(
@@ -54,6 +59,8 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint256 entranceFee,
     uint32 callbackGasLimit
   ) VRFConsumerBaseV2(vrfCoordinatorV2) {
+    //here we match and abi with an address so we can interact with the contract.
+    // Wrap interface around the address
     i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
     i_subscriptionId = subscriptionId;
     i_gasLane = gasLane;
@@ -65,7 +72,8 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   }
 
   function enterLottery() public payable {
-    if (msg.value < 0) revert Lottery__NotEnoughETH();
+    if (msg.value <= 0) revert Lottery__NotEnoughETH();
+    if (s_lotteryState != LotteryState.OPEN) revert Lottery__NotOpen();
     s_players.push(payable(msg.sender));
     emit LotteryEntered(msg.sender);
   }
@@ -76,7 +84,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     public
     view
     override
-    returns (bool upKeepNeeded, bytes memory /* PerformData */)
+    returns (bool upkeepNeeded, bytes memory /* PerformData */)
   {
     // upKeepNeedede == true if:
     // 1. Interval has passed
@@ -87,14 +95,14 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     bool intervalPassed = (block.timestamp - s_lastTimeStamp) > i_interval;
     bool enoughPlayers = s_players.length > 0;
     bool enoughETH = address(this).balance > 0;
-    upKeepNeeded = (isOpen && intervalPassed && enoughPlayers && enoughETH);
-    return (upKeepNeeded, "0x0");
+    upkeepNeeded = (isOpen && intervalPassed && enoughPlayers && enoughETH);
+    return (upkeepNeeded, "0x0");
   }
 
   function performUpkeep(bytes calldata /* PerformData */) external override {
-    (bool upKeepNeeded, ) = checkUpkeep("");
-    if (!upKeepNeeded)
-      revert Lottery__NoUpKeepNeeded(
+    (bool upkeepNeeded, ) = checkUpkeep("");
+    if (!upkeepNeeded)
+      revert Lottery__NoUpkeepNeeded(
         uint256(s_lotteryState),
         s_players.length,
         address(this).balance
@@ -107,6 +115,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
       i_callbackGasLimit,
       NUM_WORDS
     );
+    // The VRFCoordinator emits an event by himself, so this is mostly redundant
     emit RequestedLotteryWinner(requestId);
   }
 
@@ -123,5 +132,54 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     (bool success, ) = payable(s_winner).call{value: address(this).balance}("");
     if (!success) revert Lottery__TransferFailed();
     emit WinnerPicked(s_winner);
+  }
+
+  /* Pure/View functions */
+  function getVrfCoordinator() public view returns (VRFCoordinatorV2Interface) {
+    return i_vrfCoordinator;
+  }
+
+  function getSubId() public view returns (uint256) {
+    return i_subscriptionId;
+  }
+
+  function getGasLane() public view returns (bytes32) {
+    return i_gasLane;
+  }
+
+  function getInterval() public view returns (uint256) {
+    return i_interval;
+  }
+
+  function getEntranceFee() public view returns (uint256) {
+    return i_entranceFee;
+  }
+
+  function getCallbackGasLimit() public view returns (uint256) {
+    return i_callbackGasLimit;
+  }
+
+  function getCurrentTimeStamp() public view returns (uint256) {
+    return block.timestamp;
+  }
+
+  function getLastTimeStamp() public view returns (uint256) {
+    return s_lastTimeStamp;
+  }
+
+  function getPlayers(uint256 index) public view returns (address payable) {
+    return s_players[index];
+  }
+
+  function getNumberOfPlayers() public view returns (uint256) {
+    return s_players.length;
+  }
+
+  function getLotteryState() public view returns (LotteryState) {
+    return s_lotteryState;
+  }
+
+  function getRecentWinner() public view returns (address) {
+    return s_winner;
   }
 }
