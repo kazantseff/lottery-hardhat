@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.7;
 
 // Enter Lottery
 // Automatically pick a winner based on VRF and Chainlink keeper
@@ -72,7 +72,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
   }
 
   function enterLottery() public payable {
-    if (msg.value <= 0) revert Lottery__NotEnoughETH();
+    if (msg.value < i_entranceFee) revert Lottery__NotEnoughETH();
     if (s_lotteryState != LotteryState.OPEN) revert Lottery__NotOpen();
     s_players.push(payable(msg.sender));
     emit LotteryEntered(msg.sender);
@@ -167,7 +167,7 @@ contract Lottery is VRFConsumerBaseV2, KeeperCompatibleInterface {
     return s_lastTimeStamp;
   }
 
-  function getPlayers(uint256 index) public view returns (address payable) {
+  function getPlayers(uint256 index) public view returns (address) {
     return s_players[index];
   }
 

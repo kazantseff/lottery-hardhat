@@ -1,3 +1,5 @@
+const { version } = require("chai");
+
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
@@ -17,7 +19,8 @@ module.exports = {
     goerli: {
       url: GOERLI_RPC_URL,
       accounts: [PRIVATE_KEY_DEPLOYER, PRIVATE_KEY1, PRIVATE_KEY2],
-      chainId: 5
+      chainId: 5,
+      saveDeployments: true
     },
     localhost: {
       url: "http://127.0.0.1:8545/"
@@ -26,12 +29,7 @@ module.exports = {
   solidity: "0.8.17",
   namedAccounts: {
     deployer: {
-      default: 0,
-      goerli: PRIVATE_KEY_DEPLOYER
-    },
-    player: {
-      default: 1,
-      goerli: PRIVATE_KEY1
+      default: 0
     }
   },
   etherscan: {
@@ -46,6 +44,20 @@ module.exports = {
     token: "ETH"
   },
   mocha: {
-    timeout: 200000 // 200 seconds max
+    timeout: 300000 // 200 seconds max
+  },
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.7"
+      },
+      {
+        version: "0.4.24"
+      }
+    ]
+  },
+  contractSizer: {
+    runOnCompile: false,
+    only: ["Lottery"]
   }
 };
